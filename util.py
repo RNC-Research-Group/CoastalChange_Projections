@@ -273,6 +273,8 @@ def process_file(file, moving_average=True, fix_accretion=True):
         results.set_geometry(f"{model}_model_point", inplace=True, crs=2193)
         lines, polygons, smoothed_lines, smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(results)
         os.makedirs("Projections", exist_ok=True)
+        os.makedirs("Projections_best", exist_ok=True)
+        os.makedirs("Projections_good", exist_ok=True)
         polygons.to_file(f"Projections/{site}_{model}_polygon.shp")
         lines.to_file(f"Projections/{site}_{model}_line.shp")
 
