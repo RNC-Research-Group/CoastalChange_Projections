@@ -16,7 +16,7 @@ import rapidfuzz  # Fuzzy string matching
 from rapidfuzz import process, fuzz
 import os
 import warnings
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, root_mean_squared_error
 
 warnings.filterwarnings(
     "ignore", message="CRS not set for some of the concatenation inputs"
@@ -83,7 +83,7 @@ def fit(df: pd.DataFrame, transect_metadata: dict):
             "r2_score": r2_score(y, pred),
             "mae": mean_absolute_error(y, pred),
             "mse": mean_squared_error(y, pred),
-            "rmse": mean_squared_error(y, pred, squared=False)
+            "rmse": root_mean_squared_error(y, pred)
         })
     return pd.DataFrame(results)
 
