@@ -242,7 +242,7 @@ def get_transects(intersects):
   return pd.Series({"Azimuth": azimuth, "geometry": LineString([p1, p2])})
 
 
-def process_file(file, moving_average=False, fix_accretion=True):
+def process_file(file, moving_average=False):
     site = os.path.basename(file).replace("_Intersects_Proxy.shp", "")
     gdf = gpd.read_file(file)
     gdf.crs = 2193
@@ -255,7 +255,7 @@ def process_file(file, moving_average=False, fix_accretion=True):
     linear_models = fit(gdf, transect_metadata)
     linear_models["original_slope"] = linear_models.slope
     # Erosion only
-    linear_models.loc[linear_models.slope > 0, "slope"] = pd.NA
+    #linear_models.loc[linear_models.slope > 0, "slope"] = pd.NA
     if moving_average:
         rolled_slopes = linear_models.groupby("group").slope.rolling(10, min_periods=1).mean().dropna().reset_index(level=0)
         linear_models.slope = rolled_slopes.slope
@@ -265,8 +265,6 @@ def process_file(file, moving_average=False, fix_accretion=True):
         for k, v in transect_metadata.items():
             transect_metadata[k]["Azimuth"] = v["Azimuth"] + 180
     results = predict(gdf, linear_models, transect_metadata)
-    if fix_accretion:
-        results = gpd.GeoDataFrame(results[results.linear_model_distance >= 0])
     #Saving line and polygon projection file to folder in VS Code. Change file location accordingly
 
     for model in SUPPORTED_MODELS:
