@@ -97,6 +97,7 @@ def predict(
     Prop=0.1,
     B_Height=20,
     C_Depth=9.577,
+    extra=0 # Allows for storm simulation
 ):
     """_summary_
 
@@ -163,7 +164,16 @@ def predict(
                 raise ValueError(f"Unsupported model: {model}")
 
             predicted_distance = slope * latest_row.YearsUntilFuture
+
+            if slope < 0:
+                predicted_distance -= extra
+            elif slope > 0:
+                predicted_distance += extra
             
+            # Transects go from min to max distance, so origin is the most negative
+            # Azimuth is the angle from North, pointing inland
+            # -slope is erosion, so have to flip the sign to erode inland
+            # Alternatively, we could flip the azimuth by 180 degrees like what is done for the ocean point
             result[f"{model}_model_point"] = calculate_new_coordinates(
                 latest_row.geometry.x,
                 latest_row.geometry.y,
@@ -265,45 +275,67 @@ def process_file(file, moving_average=False):
         for k, v in transect_metadata.items():
             transect_metadata[k]["Azimuth"] = v["Azimuth"] + 180
     results = predict(gdf, linear_models, transect_metadata)
+    storm_results = predict(gdf, linear_models, transect_metadata, extra=20)
     #Saving line and polygon projection file to folder in VS Code. Change file location accordingly
 
     for model in SUPPORTED_MODELS:
         results.set_geometry(f"{model}_model_point", inplace=True, crs=2193)
+        storm_results.set_geometry(f"{model}_model_point", inplace=True, crs=2193)
         lines, polygons, smoothed_lines, smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(results)
+        storm_lines, storm_polygons, storm_smoothed_lines, storm_smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(storm_results)
         os.makedirs("Projections", exist_ok=True)
         os.makedirs("Projections_best", exist_ok=True)
         os.makedirs("Projections_good", exist_ok=True)
         polygons.to_file(f"Projections/{site}_{model}_polygon.shp")
+        storm_polygons.to_file(f"Projections/{site}_{model}_storm_polygon.shp")
         lines.to_file(f"Projections/{site}_{model}_line.shp")
+        storm_lines.to_file(f"Projections/{site}_{model}_storm_line.shp")
 
         #Smoothening occurs here. Currently 500 steps of Taubin's algorithm applied. Change the file name and location accordingly.  
         smoothed_lines.to_file(f"Projections/{site}_{model}_line_smoothed.shp")
+        storm_smoothed_lines.to_file(f"Projections/{site}_{model}_storm_line_smoothed.shp")
         smoothed_polygons.to_file(f"Projections/{site}_{model}_polygon_smoothed.shp")
+        storm_smoothed_polygons.to_file(f"Projections/{site}_{model}_storm_polygon_smoothed.shp")
 
         good_results = results[results.proxy.isin(["1", "2", "3", "4", "5", "6", "0,1", "0,2", "0,3", "0,4", "0,5", "0,6", "2,3", "1,4", "1,5", "1,6", "1,5,6"])]
+        good_storm_results = storm_results[storm_results.proxy.isin(["1", "2", "3", "4", "5", "6", "0,1", "0,2", "0,3", "0,4", "0,5", "0,6", "2,3", "1,4", "1,5", "1,6", "1,5,6"])]
         
         good_results.set_geometry(f"{model}_model_point", inplace=True, crs=2193)
+        good_storm_results.set_geometry(f"{model}_model_point", inplace=True, crs=2193)
         lines, polygons, smoothed_lines, smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(good_results)
+        storm_lines, storm_polygons, storm_smoothed_lines, storm_smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(good_storm_results)
         if len(good_results) >= 1:
             polygons.to_file(f"Projections_good/{site}_{model}_polygon.shp")
+            storm_polygons.to_file(f"Projections_good/{site}_{model}_storm_polygon.shp")
             lines.to_file(f"Projections_good/{site}_{model}_line.shp")
+            storm_lines.to_file(f"Projections_good/{site}_{model}_storm_line.shp")
             #Smoothening occurs here. Currently 500 steps of Taubin's algorithm applied. Change the file name and location accordingly.  
             smoothed_lines.to_file(f"Projections_good/{site}_{model}_line_smoothed.shp")
+            storm_smoothed_lines.to_file(f"Projections_good/{site}_{model}_storm_line_smoothed.shp")
             smoothed_polygons.to_file(f"Projections_good/{site}_{model}_polygon_smoothed.shp")
+            storm_smoothed_polygons.to_file(f"Projections_good/{site}_{model}_storm_polygon_smoothed.shp")
             
 
         if model in ["sqrt", "BH", "Sunamura"]:
             good_results = results[results.proxy.isin(["2", "3", "0,2", "0,3", "2,3", "0,2,3"])]
+            good_storm_results = storm_results[storm_results.proxy.isin(["2", "3", "0,2", "0,3", "2,3", "0,2,3"])]
             good_results.set_geometry(f"{model}_model_point", inplace=True, crs=2193)
+            good_storm_results.set_geometry(f"{model}_model_point", inplace=True, crs=2193)
             lines, polygons, smoothed_lines, smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(good_results)
+            storm_lines, storm_polygons, storm_smoothed_lines, storm_smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(good_storm_results)
             if len(good_results) >= 1:
                 polygons.to_file(f"Projections_best/{site}_{model}_polygon.shp")
+                storm_polygons.to_file(f"Projections_best/{site}_{model}_storm_polygon.shp")
                 lines.to_file(f"Projections_best/{site}_{model}_line.shp")
+                storm_lines.to_file(f"Projections_best/{site}_{model}_storm_line.shp")
                 smoothed_lines.to_file(f"Projections_best/{site}_{model}_line_smoothed.shp")
+                storm_smoothed_lines.to_file(f"Projections_best/{site}_{model}_storm_line_smoothed.shp")
                 smoothed_polygons.to_file(f"Projections_best/{site}_{model}_polygon_smoothed.shp")
+                storm_smoothed_polygons.to_file(f"Projections_best/{site}_{model}_storm_polygon_smoothed.shp")
 
 
     results.to_csv(f"Projections/{site}_results.csv", index=False)
+    storm_results.to_csv(f"Projections/{site}_storm_results.csv", index=False)
 
 
 def fuzz_preprocess(filename):
