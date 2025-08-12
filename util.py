@@ -47,7 +47,7 @@ def calculate_new_coordinates(old_x, old_y, bearing, distance):
     new_x = old_x + (distance * math.sin(bearing_radians))
     new_y = old_y + (distance * math.cos(bearing_radians))
     point = Point(new_x, new_y)
-    assert not point.is_empty
+    assert not point.is_empty, f"{old_x}, {old_y}, {bearing}, {distance} resulted in an empty point"
     return point
 
 from rapidfuzz import process, fuzz
@@ -143,7 +143,6 @@ def predict(
 
         for model in SUPPORTED_MODELS:
             slope = row.slope
-            intercept = row.intercept
             if model == "linear":
                 pass
             elif model == "sqrt":
@@ -258,9 +257,35 @@ def process_file(file, moving_average=False):
     gdf.crs = 2193
     gdf = enrich_df(gdf)
     
-    lines = gdf.groupby("TransectID")[["geometry", "Distance"]].apply(get_transects)
-    lines.crs = gdf.crs
-    transect_metadata = get_transect_metadata(lines)
+    transects = gdf.groupby("TransectID")[["geometry", "Distance"]].apply(get_transects)
+    transects.crs = gdf.crs
+    transect_metadata = get_transect_metadata(transects)
+
+    os.makedirs("Projections", exist_ok=True)
+    os.makedirs("Projections_best", exist_ok=True)
+    os.makedirs("Projections_good", exist_ok=True)
+
+    bruun = gpd.read_file("https://github.com/eduardogomezdelapena/OCC_Retreat_Modelling/raw/refs/heads/main/shoreline_retreat.geojson").to_crs(gdf.crs).dropna()
+    bruun_model = transects.sjoin_nearest(bruun).reset_index().rename(columns={"bruun_retreat": "slope"})
+    bruun_model.slope = -bruun_model.slope / 25  # 2030 - 2005, convert to retreat per year
+    bruun_model = bruun_model[["TransectID", "group", "slope"]]
+    bruun_results = predict(gdf, bruun_model, transect_metadata)
+    bruun_results.set_geometry("linear_model_point", inplace=True, crs=2193)
+    lines, polygons, smoothed_lines, smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(bruun_results)
+    polygons.to_file(f"Projections/{site}_bruun_polygon.shp")
+    smoothed_polygons.to_file(f"Projections/{site}_bruun_polygon_smoothed.shp")
+    lines.to_file(f"Projections/{site}_bruun_line.shp")
+    smoothed_lines.to_file(f"Projections/{site}_bruun_line_smoothed.shp")
+    bruun_results.to_csv(f"Projections/{site}_bruun_results.csv", index=False)
+    
+    bruun_storm_results = predict(gdf, bruun_model, transect_metadata, extra=20)
+    bruun_storm_results.set_geometry("linear_model_point", inplace=True, crs=2193)
+    bruun_storm_results.to_csv(f"Projections/{site}_bruun_storm.csv", index=False)
+    storm_lines, storm_polygons, storm_smoothed_lines, storm_smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(bruun_storm_results)
+    storm_polygons.to_file(f"Projections/{site}_bruun_storm_polygon.shp")
+    storm_smoothed_polygons.to_file(f"Projections/{site}_bruun_storm_polygon_smoothed.shp")
+    storm_lines.to_file(f"Projections/{site}_bruun_storm_line.shp")
+    storm_smoothed_lines.to_file(f"Projections/{site}_bruun_storm_line_smoothed.shp")
 
     linear_models = fit(gdf, transect_metadata)
     linear_models["original_slope"] = linear_models.slope
@@ -283,9 +308,6 @@ def process_file(file, moving_average=False):
         storm_results.set_geometry(f"{model}_model_point", inplace=True, crs=2193)
         lines, polygons, smoothed_lines, smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(results)
         storm_lines, storm_polygons, storm_smoothed_lines, storm_smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(storm_results)
-        os.makedirs("Projections", exist_ok=True)
-        os.makedirs("Projections_best", exist_ok=True)
-        os.makedirs("Projections_good", exist_ok=True)
         polygons.to_file(f"Projections/{site}_{model}_polygon.shp")
         storm_polygons.to_file(f"Projections/{site}_{model}_storm_polygon.shp")
         lines.to_file(f"Projections/{site}_{model}_line.shp")
