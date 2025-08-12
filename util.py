@@ -97,7 +97,7 @@ def predict(
     Prop=0.1,
     B_Height=20,
     C_Depth=9.577,
-    extra=0 # Allows for storm simulation
+    extra_erosion=0 # Allows for storm simulation
 ):
     """_summary_
 
@@ -162,12 +162,7 @@ def predict(
             else:
                 raise ValueError(f"Unsupported model: {model}")
 
-            predicted_distance = slope * latest_row.YearsUntilFuture
-
-            if slope < 0:
-                predicted_distance -= extra
-            elif slope > 0:
-                predicted_distance += extra
+            predicted_distance = slope * latest_row.YearsUntilFuture - extra_erosion
             
             # Transects go from min to max distance, so origin is the most negative
             # Azimuth is the angle from North, pointing inland
@@ -277,8 +272,8 @@ def process_file(file, moving_average=False):
     lines.to_file(f"Projections/{site}_bruun_line.shp")
     smoothed_lines.to_file(f"Projections/{site}_bruun_line_smoothed.shp")
     bruun_results.to_csv(f"Projections/{site}_bruun_results.csv", index=False)
-    
-    bruun_storm_results = predict(gdf, bruun_model, transect_metadata, extra=20)
+
+    bruun_storm_results = predict(gdf, bruun_model, transect_metadata, extra_erosion=20)
     bruun_storm_results.set_geometry("linear_model_point", inplace=True, crs=2193)
     bruun_storm_results.to_csv(f"Projections/{site}_bruun_storm.csv", index=False)
     storm_lines, storm_polygons, storm_smoothed_lines, storm_smoothed_polygons = prediction_results_to_line_polygon_and_smoothed(bruun_storm_results)
@@ -300,7 +295,7 @@ def process_file(file, moving_average=False):
         for k, v in transect_metadata.items():
             transect_metadata[k]["Azimuth"] = v["Azimuth"] + 180
     results = predict(gdf, linear_models, transect_metadata)
-    storm_results = predict(gdf, linear_models, transect_metadata, extra=20)
+    storm_results = predict(gdf, linear_models, transect_metadata, extra_erosion=20)
     #Saving line and polygon projection file to folder in VS Code. Change file location accordingly
 
     for model in SUPPORTED_MODELS:
